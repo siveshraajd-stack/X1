@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DEFAULT_TEMP_PASSWORD, DEPARTMENTS, LEAVE_QUOTAS, MAX_LEAVE_QUOTA } from '@/lib/constants';
+import { missingEmployeeDetails } from '@/lib/employee-required';
 import { DetailSections, ExtraField, FormSection, Field, Grid, INPUT, buildDetailsPayload, emptyDetails } from '@/components/profile/details-form';
 
 // The form takes one full name; the API stores first + last name.
@@ -90,7 +91,8 @@ export function AddEmployeeForm() {
         if (!emailRe.test(formData.email.trim())) return 'Employee email is required and must be a valid email address';
         if (!formData.managerId) return 'Please select a manager';
         if (!emailRe.test(formData.managerEmail.trim())) return "Manager's email is required and must be a valid email address";
-        return '';
+        // Every other detail is compulsory too
+        return missingEmployeeDetails({ ...formData, name: formData.fullName }, details);
     };
 
     const handleChange = (e) => {
@@ -205,23 +207,23 @@ export function AddEmployeeForm() {
                                 ))}
                             </select>
                         </Field>
-                        <ExtraField name="divisionSection" details={details} setDetails={setDetails} />
-                        <ExtraField name="employmentStatus" details={details} setDetails={setDetails} />
-                        <ExtraField name="city" details={details} setDetails={setDetails} />
+                        <ExtraField name="divisionSection" details={details} setDetails={setDetails} required />
+                        <ExtraField name="employmentStatus" details={details} setDetails={setDetails} required />
+                        <ExtraField name="city" details={details} setDetails={setDetails} required />
                         <div className="hidden md:block" />
                         <Field label="Correspondence Address" required className="md:col-span-2">
                             <textarea name="residingAddress" value={formData.residingAddress} onChange={handleChange} required rows={3} className={INPUT} />
                         </Field>
-                        <ExtraField name="permanentAddress" details={details} setDetails={setDetails} />
+                        <ExtraField name="permanentAddress" details={details} setDetails={setDetails} required />
                         <Field label="Mobile Number" required>
                             <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required maxLength={10} placeholder="10 digits" className={INPUT} />
                         </Field>
-                        <ExtraField name="alternateMobile" details={details} setDetails={setDetails} />
+                        <ExtraField name="alternateMobile" details={details} setDetails={setDetails} required />
                         <Field label="Official Mail ID" required>
                             <input type="email" name="email" value={formData.email} onChange={handleChange} required className={INPUT} />
                         </Field>
-                        <Field label="Personal E-mail ID">
-                            <input type="email" name="personalEmail" value={formData.personalEmail} onChange={handleChange} className={INPUT} />
+                        <Field label="Personal E-mail ID" required>
+                            <input type="email" name="personalEmail" value={formData.personalEmail} onChange={handleChange} required className={INPUT} />
                         </Field>
                         <Field label="DOB" required>
                             <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} required className={INPUT} />
@@ -234,8 +236,8 @@ export function AddEmployeeForm() {
                                 <option value="Other">OTHER</option>
                             </select>
                         </Field>
-                        <Field label="Marital Status">
-                            <select name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} className={`${INPUT} uppercase`}>
+                        <Field label="Marital Status" required>
+                            <select name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} required className={`${INPUT} uppercase`}>
                                 <option value="">Select status</option>
                                 <option value="Single">SINGLE</option>
                                 <option value="Married">MARRIED</option>
@@ -243,14 +245,14 @@ export function AddEmployeeForm() {
                                 <option value="Widowed">WIDOWED</option>
                             </select>
                         </Field>
-                        <ExtraField name="bloodGroup" details={details} setDetails={setDetails} />
+                        <ExtraField name="bloodGroup" details={details} setDetails={setDetails} required />
                         <Field label="DOJ (use a past date for existing employees)" required>
                             <input type="date" name="dateOfJoining" value={formData.dateOfJoining} onChange={handleChange} required className={INPUT} />
                         </Field>
                         <div className="hidden md:block" />
-                        <ExtraField name="emergencyContactName" details={details} setDetails={setDetails} />
-                        <ExtraField name="emergencyContactNumber" details={details} setDetails={setDetails} />
-                        <ExtraField name="emergencyContactRelation" details={details} setDetails={setDetails} />
+                        <ExtraField name="emergencyContactName" details={details} setDetails={setDetails} required />
+                        <ExtraField name="emergencyContactNumber" details={details} setDetails={setDetails} required />
+                        <ExtraField name="emergencyContactRelation" details={details} setDetails={setDetails} required />
                     </Grid>
                 </FormSection>
 

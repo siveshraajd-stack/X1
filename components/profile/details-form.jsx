@@ -177,7 +177,7 @@ function Control({ column, value, onChange }) {
     );
 }
 
-function RowsEditor({ rows, columns, onChange, addLabel, itemLabel }) {
+function RowsEditor({ rows, columns, onChange, addLabel, itemLabel, allRequired = false }) {
     const update = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
     return (
         <div className="space-y-6">
@@ -198,7 +198,7 @@ function RowsEditor({ rows, columns, onChange, addLabel, itemLabel }) {
                     </div>
                     <Grid>
                         {columns.map((column) => (
-                            <Field key={column.key} label={column.label} required={column.required}>
+                            <Field key={column.key} label={column.label} required={allRequired || column.required}>
                                 <Control column={column} value={row[column.key]} onChange={(v) => update(index, column.key, v)} />
                             </Field>
                         ))}
@@ -229,11 +229,11 @@ const EXTRA_FIELDS = {
 };
 
 /** One of the extra section 1 fields (division, status, city, permanent address, alternate mobile, blood group, emergency contact). */
-export function ExtraField({ name, details, setDetails }) {
+export function ExtraField({ name, details, setDetails, required = false }) {
     const config = EXTRA_FIELDS[name];
     const onChange = (e) => setDetails((d) => ({ ...d, [name]: e.target.value }));
     return (
-        <Field label={config.label} className={config.wide ? 'md:col-span-2' : ''}>
+        <Field label={config.label} required={required} className={config.wide ? 'md:col-span-2' : ''}>
             {config.type === 'select' ? (
                 <select value={details[name]} onChange={onChange} className={`${INPUT} uppercase`}>
                     <option value="">Select</option>
@@ -282,7 +282,7 @@ function DocumentsEditor({ details, setDetails, existingDocuments }) {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4 items-end">
-                <Field label="Document Type">
+                <Field label="Document Type (PAN, Aadhaar, Educational Certificates and Bank Proof are required)">
                     <select value={type} onChange={(e) => setType(e.target.value)} className={`${INPUT} uppercase`}>
                         {DOCUMENT_TYPES.map((t) => (
                             <option key={t} value={t}>
@@ -351,6 +351,7 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
     const set = (key) => (value) => setDetails((d) => ({ ...d, [key]: value }));
     const setSensitive = (key) => (e) => setDetails((d) => ({ ...d, sensitive: { ...d.sensitive, [key]: e.target.value } }));
     const locked = mode === 'edit' && !unlocked;
+    const req = mode === 'create'; // every detail is compulsory when an account is created
 
     const lockedBox = (
         <div className="border border-gray-200 bg-gray-50 p-6 flex flex-wrap items-center justify-between gap-4">
@@ -373,18 +374,18 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
     return (
         <>
             <FormSection number="2" title="Family Details">
-                <RowsEditor rows={details.familyMembers} columns={FAMILY_COLUMNS} onChange={set('familyMembers')} addLabel="Add family member" itemLabel="Family member" />
+                <RowsEditor rows={details.familyMembers} columns={FAMILY_COLUMNS} onChange={set('familyMembers')} addLabel="Add family member" itemLabel="Family member" allRequired={req} />
             </FormSection>
 
             <FormSection number="3" title="PF Details">
                 <Grid>
-                    <Field label="UAN Number">
+                    <Field label="UAN Number" required={req}>
                         <input value={details.uanNumber} onChange={(e) => set('uanNumber')(e.target.value)} maxLength={12} placeholder="12 digits" className={INPUT} />
                     </Field>
-                    <Field label="PF Number">
+                    <Field label="PF Number" required={req}>
                         <input value={details.pfNumber} onChange={(e) => set('pfNumber')(e.target.value)} maxLength={40} className={INPUT} />
                     </Field>
-                    <Field label="DOJ in PF">
+                    <Field label="DOJ in PF" required={req}>
                         <input type="date" value={details.dojInPf} onChange={(e) => set('dojInPf')(e.target.value)} className={INPUT} />
                     </Field>
                     <Field label="DOL (Date of Leaving)">
@@ -393,7 +394,7 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
                     <Field label="ROL (Reason of Leaving)">
                         <input value={details.rol} onChange={(e) => set('rol')(e.target.value)} maxLength={200} className={INPUT} />
                     </Field>
-                    <Field label="Probation / Confirmation">
+                    <Field label="Probation / Confirmation" required={req}>
                         <select value={details.probationStatus} onChange={(e) => set('probationStatus')(e.target.value)} className={`${INPUT} uppercase`}>
                             <option value="">Select</option>
                             <option value="Probation">PROBATION</option>
@@ -403,18 +404,18 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
                     <Field label="Date of Confirmation">
                         <input type="date" value={details.dateOfConfirmation} onChange={(e) => set('dateOfConfirmation')(e.target.value)} className={INPUT} />
                     </Field>
-                    <Field label="ESIC Number">
+                    <Field label="ESIC Number" required={req}>
                         <input value={details.esicNumber} onChange={(e) => set('esicNumber')(e.target.value)} maxLength={20} className={INPUT} />
                     </Field>
                 </Grid>
             </FormSection>
 
             <FormSection number="4" title="Academic Details">
-                <RowsEditor rows={details.education} columns={EDUCATION_COLUMNS} onChange={set('education')} addLabel="Add qualification" itemLabel="Qualification" />
+                <RowsEditor rows={details.education} columns={EDUCATION_COLUMNS} onChange={set('education')} addLabel="Add qualification" itemLabel="Qualification" allRequired={req} />
             </FormSection>
 
             <FormSection number="5" title="Experience Details">
-                <RowsEditor rows={details.experience} columns={EXPERIENCE_COLUMNS} onChange={set('experience')} addLabel="Add experience" itemLabel="Experience" />
+                <RowsEditor rows={details.experience} columns={EXPERIENCE_COLUMNS} onChange={set('experience')} addLabel="Add experience" itemLabel="Experience" allRequired={req} />
             </FormSection>
 
             <FormSection number="6" title="Bank Details" hint="(confidential: shown hidden on the profile)">
@@ -422,19 +423,19 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
                     lockedBox
                 ) : (
                     <Grid>
-                        <Field label="CUB Account Number">
+                        <Field label="CUB Account Number" required={req}>
                             <input value={details.sensitive.cubAccountNumber} onChange={setSensitive('cubAccountNumber')} autoComplete="off" maxLength={18} placeholder="9 to 18 digits" className={INPUT} />
                         </Field>
-                        <Field label="Personal Bank Account">
+                        <Field label="Personal Bank Account" required={req}>
                             <input value={details.sensitive.personalBankAccount} onChange={setSensitive('personalBankAccount')} autoComplete="off" maxLength={18} placeholder="9 to 18 digits" className={INPUT} />
                         </Field>
-                        <Field label="IFSC Code">
+                        <Field label="IFSC Code" required={req}>
                             <input value={details.sensitive.ifscCode} onChange={setSensitive('ifscCode')} autoComplete="off" maxLength={11} placeholder="e.g. CIUB0000123" className={`${INPUT} uppercase`} />
                         </Field>
-                        <Field label="Bank Name">
+                        <Field label="Bank Name" required={req}>
                             <input value={details.sensitive.bankName} onChange={setSensitive('bankName')} autoComplete="off" maxLength={100} className={INPUT} />
                         </Field>
-                        <Field label="Salary">
+                        <Field label="Salary" required={req}>
                             <input value={details.sensitive.salary} onChange={setSensitive('salary')} autoComplete="off" inputMode="decimal" placeholder="Amount" className={INPUT} />
                         </Field>
                     </Grid>
@@ -446,10 +447,10 @@ export function DetailSections({ details, setDetails, existingDocuments = [], mo
                     lockedBox
                 ) : (
                     <Grid>
-                        <Field label="PAN No">
+                        <Field label="PAN No" required={req}>
                             <input value={details.sensitive.panNo} onChange={setSensitive('panNo')} autoComplete="off" maxLength={10} placeholder="ABCDE1234F" className={`${INPUT} uppercase`} />
                         </Field>
-                        <Field label="Aadhaar No">
+                        <Field label="Aadhaar No" required={req}>
                             <input value={details.sensitive.aadhaarNo} onChange={setSensitive('aadhaarNo')} autoComplete="off" maxLength={14} placeholder="12 digits" className={INPUT} />
                         </Field>
                     </Grid>

@@ -12,6 +12,7 @@ import { errorResponseParts } from '@/lib/errors';
 import { dayStart } from '@/lib/dates';
 import { buildProfileData, saveDocuments } from '@/lib/employee-details';
 import { LEAVE_QUOTAS, DEFAULT_TEMP_PASSWORD } from '@/lib/constants';
+import { missingEmployeeDetails } from '@/lib/employee-required';
 
 // POST create new employee (Admin only)
 export async function POST(request) {
@@ -25,6 +26,13 @@ export async function POST(request) {
 
         // Validates required employee email, manager + manager email, temporary password...
         const validatedData = addEmployeeSchema.parse(body);
+
+        // Every profile detail is compulsory for a new account
+        const missing = missingEmployeeDetails(
+            { ...validatedData, name: `${validatedData.firstName || ''} ${validatedData.lastName || ''}`.trim() },
+            body.details || {}
+        );
+        if (missing) return NextResponse.json({ error: missing }, { status: 400 });
 
         // The manager must exist in this company and the email must belong to them
         const manager = await resolveManager(admin.companyId, validatedData.managerId, validatedData.managerEmail);
