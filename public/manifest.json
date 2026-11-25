@@ -1,0 +1,17 @@
+{
+  "name": "Keystone",
+  "short_name": "Keystone",
+  "description": "HR Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#774790",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

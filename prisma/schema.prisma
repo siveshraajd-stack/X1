@@ -1,0 +1,608 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  TEAM_LEAD
+  EMPLOYEE
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logo      String? // URL or path to logo file
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users               User[] // All users (HR, managers and employees) belonging to this company
+  holidays            Holiday[]
+  attendanceOverrides AttendanceOverride[]
+  biometricPunches    BiometricPunch[]
+
+  @@map("companies")
+}
+
+model User {
+  id         String  @id @default(cuid())
+  employeeId String? @unique // Auto-generated Login ID for employees
+  email      String  @unique
+  password   String
+  name       String
+  phone      String?
+  role       Role    @default(EMPLOYEE)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Forced password change: true for every account created by an admin until
+  // the user sets their own password.
+  mustChangePassword Boolean @default(true)
+
+  // "Forgot password": a temporary password is e-mailed to the personal e-mail in the profile.
+  // Only its bcrypt hash is stored here, and it expires. The old password keeps working until the
+  // temporary one is actually used to sign in (so nobody can lock another person out).
+  resetPasswordHash   String?
+  resetPasswordExpiry DateTime?
+
+  // Yearly Sick / Casual leave quota. HR sets it when creating the account and can edit it later.
+  // Never shown on the employee's own dashboard.
+  sickLeaveQuota   Int @default(8)
+  casualLeaveQuota Int @default(8)
+
+  // Number the fingerprint machine knows this person by (enroll / user id on the device)
+  biometricId String?
+
+  // Reporting line. managerEmail is stored next to managerId so leave emails
+  // can be routed even if the manager's account is later edited.
+  managerId        String?
+  managerEmail     String?
+  manager          User?            @relation("ManagerReports", fields: [managerId], references: [id], onDelete: SetNull)
+  reports          User[]           @relation("ManagerReports")
+  biometricPunches BiometricPunch[]
+
+  // Profile relations
+  profile             EmployeeProfile?
+  jobDetails          JobDetails?
+  documents           Document[]
+  attendance          Attendance[]
+  idleEpisodes        IdleEpisode[]
+  leaveRequests       LeaveRequest[]       @relation("LeaveOwner")
+  managedLeaves       LeaveRequest[]       @relation("LeaveManager")
+  upperManagedLeaves  LeaveRequest[]       @relation("LeaveUpperManager")
+  expenseClaims       ExpenseClaim[]       @relation("ExpenseOwner")
+  managedExpenses     ExpenseClaim[]       @relation("ExpenseManager")
+  notifications       Notification[]
+  performanceReviews  PerformanceReview[]
+  trainingEnrollments TrainingEnrollment[]
+  auditLogs           AuditLog[]
+  passwordVault       PasswordVault?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, biometricId])
+  @@index([companyId, role])
+  @@index([managerId])
+  @@map("users")
+}
+
+// Encrypted (AES-256-GCM) copy of an employee's / manager's current password so HR can
+// look it up. Kept in its own table so it can never leak through a normal User query.
+model PasswordVault {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  encrypted String
+  updatedAt DateTime @updatedAt
+
+  @@map("password_vault")
+}
+
+model EmployeeProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profilePicture  String?
+  dateOfBirth     DateTime?
+  gender          String?
+  maritalStatus   String?
+  nationality     String?
+  personalEmail   String?
+  residingAddress String?
+
+  // Parent / guardian contact
+  parentName  String?
+  parentPhone String?
+
+  // About section
+  about            String?
+  jobLoves         String?
+  interestsHobbies String?
+
+  // 1. Personal details (more). Dates are stored as YYYY-MM-DD text.
+  divisionSection          String?
+  employmentStatus         String?
+  city                     String?
+  permanentAddress         String?
+  alternateMobile          String?
+  bloodGroup               String?
+  emergencyContactName     String?
+  emergencyContactNumber   String?
+  emergencyContactRelation String?
+
+  // 3. PF details
+  uanNumber          String?
+  pfNumber           String?
+  dojInPf            String?
+  dol                String? // date of leaving
+  rol                String? // reason of leaving
+  probationStatus    String? // Probation / Confirmed
+  dateOfConfirmation String?
+  esicNumber         String?
+
+  // 2, 4, 5. Lists of rows (family members, academic details, previous experience)
+  familyMembers Json?
+  education     Json?
+  experience    Json?
+
+  // 6, 7. Confidential values (bank accounts, IFSC, bank name, salary, PAN, Aadhaar):
+  // one AES-256-GCM encrypted JSON blob. Never sent to the browser as it is.
+  sensitiveEnc String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employee_profiles")
+}
+
+model JobDetails {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  jobPosition   String?
+  department    String?
+  manager       String?
+  workLocation  String?
+  dateOfJoining DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_details")
+}
+
+model Document {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fileName     String
+  fileType     String
+  fileUrl      String
+  documentType String? // Resume, Certificate, etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents")
+}
+
+model Attendance {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Midnight (Asia/Kolkata) of the attendance day. One row per user per day.
+  date     DateTime  @default(now())
+  checkIn  DateTime?
+  checkOut DateTime?
+  // Web self-service clock times (dashboard Clock In / Clock Out)
+  clockIn  DateTime?
+  clockOut DateTime?
+  status   String? // PRESENT, ABSENT, LATE, WFH, OD (legacy: HALF DAY, LEAVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("attendances")
+}
+
+// One stretch of no cursor movement (employee dashboard). Created once the employee has been still for
+// the 5-minute threshold; idleSeconds is the counted part (after the threshold, without breaks, lunch
+// and Teams meetings). startedAt is the last cursor movement and identifies the episode.
+model IdleEpisode {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date        DateTime // midnight (Asia/Kolkata) of the day it was reported
+  startedAt   DateTime
+  endedAt     DateTime
+  idleSeconds Int      @default(0)
+  notifiedAt  DateTime? // when the 5-minute alert was sent
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, startedAt])
+  @@index([userId, date])
+  @@map("idle_episodes")
+}
+
+model LeaveRequest {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("LeaveOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  // First approver (the employee's team lead / reporting manager at submission time).
+  managerId String?
+  manager   User?   @relation("LeaveManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  // Second approver: the first approver's own manager at submission time (null when the first
+  // approver reports straight to HR, in which case the manager step is skipped).
+  upperManagerId String?
+  upperManager   User?   @relation("LeaveUpperManager", fields: [upperManagerId], references: [id], onDelete: SetNull)
+
+  type         String // SICK, CASUAL, EARNED, LOP, COMPENSATE, RESTRICTED_HOLIDAY
+  startDate    DateTime
+  endDate      DateTime
+  days         Float? // working days, calculated by the server
+  // Approval chain: Team Lead -> Manager -> HR.
+  //   PENDING             waiting for the team lead (first approver)
+  //   TEAM_LEAD_APPROVED  team lead said yes, waiting for the manager (skipped when there is no manager above the team lead)
+  //   MANAGER_APPROVED    manager said yes, waiting for HR
+  //   APPROVED            HR said yes too (final, the only state that counts as leave)
+  //   REJECTED            anybody in the chain said no (final)
+  status       String    @default("PENDING") // PENDING, TEAM_LEAD_APPROVED, MANAGER_APPROVED, APPROVED, REJECTED
+  reason       String?
+  // COMPENSATE leave: the day the employee worked extra (the leave dates are startDate..endDate)
+  compensateForDate String? // YYYY-MM-DD
+  // OD request details (optional)
+  siteLocation String?
+  projectName  String?
+  teamLeadComment String? // team lead's comment (only when a manager sits above the team lead)
+  adminComment String? // manager's comment on the decision
+  hrComment    String? // HR's comment on the final decision
+  rejectedBy   String? // TEAM_LEAD, MANAGER or HR - who rejected it (only set when status = REJECTED)
+  teamLeadDecidedAt DateTime? // when the team lead approved
+  managerDecidedAt DateTime? // when the manager approved
+  // Names of the people who decided each step, copied at decision time so the employee (and
+  // everyone else) always sees real names, even if that person is renamed or removed later.
+  teamLeadDecidedByName String?
+  managerDecidedByName  String?
+  hrDecidedByName       String?
+  decidedAt    DateTime? // when the request reached its final state (APPROVED / REJECTED)
+
+  // Auto-generated by the "5 late marks = 1 day leave" rule. lateKey makes the
+  // deduction idempotent: userId:YYYY-MM:block.
+  autoGenerated Boolean @default(false)
+  lateKey       String? @unique
+
+  // sha256 of the one-time token used by the Approve / Reject email links.
+  actionTokenHash   String?   @unique
+  actionTokenExpiry DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([managerId, status])
+  @@index([upperManagerId, status])
+  @@index([status])
+  @@index([userId, startDate])
+  @@map("leave_requests")
+}
+
+// On-duty (OD) expense claim. Two-step approval:
+//   Employee submits -> reporting manager (notification + dashboard) accepts or denies
+//     manager denies  -> REJECTED, employee is told
+//     manager accepts -> MANAGER_APPROVED, HR (admins) are notified (in-app, email, WhatsApp)
+//   HR accepts or denies from the dashboard -> APPROVED / REJECTED, employee is told.
+model ExpenseClaim {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("ExpenseOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Reporting manager at submission time. Only this person can decide.
+  managerId String?
+  manager   User?   @relation("ExpenseManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  category        String // TRAVEL, ACCOMMODATION, FOOD, LOCAL_CONVEYANCE, OFFICE_SUPPLIES, CLIENT_ENTERTAINMENT
+  travelMode      String? // FLIGHT, TRAIN, BUS, OTHER (only when category = TRAVEL)
+  travelModeOther String? // free text when travelMode = OTHER
+  amount          Float
+  fromDate        DateTime // expense period start (midnight IST)
+  toDate          DateTime // expense period end (midnight IST)
+  journeyStartDate DateTime // day the journey started (midnight IST)
+  clientLocation  String
+  projectName     String
+
+  receiptAvailable Boolean @default(false)
+  receiptUrl       String? // uploaded bill (when receiptAvailable)
+  receiptNote      String? // why there is no bill (when not receiptAvailable)
+
+  description String?
+
+  status          String    @default("PENDING") // PENDING (manager), MANAGER_APPROVED (waiting for HR), APPROVED, REJECTED
+  managerComment  String?
+  hrComment       String?
+  managerDecidedAt DateTime?
+  managerDecidedByName String? // name of the manager who accepted / denied (copied at decision time)
+  hrDecidedByName      String? // name of the HR who accepted / denied (copied at decision time)
+  rejectedBy      String? // MANAGER or HR (set when status = REJECTED)
+  decidedAt       DateTime? // final decision time
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([managerId, status])
+  @@index([userId, createdAt])
+  @@map("expense_claims")
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type       String // LEAVE_UPDATE, LEAVE_REQUEST, SYSTEM, etc.
+  title      String
+  message    String
+  isRead     Boolean @default(false)
+  priority   String  @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  category   String  @default("SYSTEM") // SYSTEM, EMAIL, PUSH, SMS
+  actionUrl  String? // URL for action button
+  actionText String? // Text for action button
+  leaveId    String? // set on leave notifications so Accept / Deny can be shown right in the popup
+  // Real name of the person this notification comes from (HR / manager / team lead / employee).
+  senderName String?
+
+  // Email specific fields
+  emailSent   Boolean   @default(false)
+  emailSentAt DateTime?
+
+  // Push notification fields
+  pushSent   Boolean   @default(false)
+  pushSentAt DateTime?
+
+  // SMS fields
+  smsSent   Boolean   @default(false)
+  smsSentAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// For tracking employee ID serial numbers per year
+model CompanySettings {
+  id               String @id @default(cuid())
+  companyId        String
+  year             Int
+  lastSerialNumber Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, year])
+  @@map("company_settings")
+}
+
+// Performance Review System
+model PerformanceReview {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reviewPeriod String // Q1-2024, ANNUAL-2024, etc.
+  reviewType   String // QUARTERLY, ANNUAL, PROBATION
+
+  // Performance ratings (1-5 scale)
+  qualityRating    Float?
+  quantityRating   Float?
+  teamworkRating   Float?
+  initiativeRating Float?
+  attendanceRating Float?
+  overallRating    Float?
+
+  strengths        String?
+  weaknesses       String?
+  goals            String?
+  recommendations  String?
+  employeeComments String?
+
+  status     String    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  reviewedBy String? // Manager ID
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("performance_reviews")
+}
+
+// Training Management
+model Training {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  category    String? // TECHNICAL, SOFT_SKILLS, COMPLIANCE, SAFETY
+  duration    Int? // in hours
+  cost        Float?
+  instructor  String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("PLANNED") // PLANNED, ONGOING, COMPLETED, CANCELLED
+
+  enrollments TrainingEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trainings")
+}
+
+model TrainingEnrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingId String
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  status         String  @default("ENROLLED") // ENROLLED, IN_PROGRESS, COMPLETED, DROPPED
+  progress       Float   @default(0) // 0-100 percentage
+  score          Float? // Final score if applicable
+  certificateUrl String?
+
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, trainingId])
+  @@map("training_enrollments")
+}
+
+// Recruitment System
+model JobPosting {
+  id              String  @id @default(cuid())
+  title           String
+  description     String?
+  department      String?
+  location        String?
+  employmentType  String? // FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP
+  experienceLevel String? // ENTRY, MID, SENIOR, LEAD
+  salaryRange     String?
+  status          String  @default("ACTIVE") // ACTIVE, CLOSED, DRAFT
+
+  postedBy String // HR/Admin ID
+  postedAt DateTime  @default(now())
+  deadline DateTime?
+
+  applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_postings")
+}
+
+model JobApplication {
+  id           String     @id @default(cuid())
+  jobPostingId String
+  jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+
+  name        String
+  email       String
+  phone       String?
+  resumeUrl   String?
+  coverLetter String?
+
+  status     String    @default("APPLIED") // APPLIED, SCREENING, INTERVIEW, OFFER, REJECTED
+  notes      String?
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_applications")
+}
+
+// Audit Logs for Security
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action     String // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, VIEW
+  resource   String // USER, LEAVE_REQUEST, ATTENDANCE, etc.
+  resourceId String?
+
+  ipAddress String?
+  userAgent String?
+  details   String? // JSON string with additional details
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Reports System
+model Report {
+  id         String  @id @default(cuid())
+  name       String
+  type       String // ATTENDANCE, LEAVE, PERFORMANCE, CUSTOM
+  parameters String? // JSON string with report parameters
+  format     String // PDF, EXCEL, CSV
+  status     String  @default("GENERATING") // GENERATING, COMPLETED, FAILED
+
+  generatedBy String
+  fileUrl     String?
+  fileSize    Int? // in bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reports")
+}
+
+// Festival / public holidays (shown YELLOW on the calendar)
+model Holiday {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date      DateTime // midnight Asia/Kolkata
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, date])
+  @@map("holidays")
+}
+
+// Dates (holiday or weekend) on which the admin allows attendance marking
+model AttendanceOverride {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date      DateTime // midnight Asia/Kolkata
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, date])
+  @@map("attendance_overrides")
+}
+
+// Raw punches received from the fingerprint machine / biometric API (audit trail)
+model BiometricPunch {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  biometricId String // id on the device
+  punchTime   DateTime
+  deviceId    String?
+  direction   String? // IN / OUT when the device reports it (informational)
+  status      String // APPLIED, UNMAPPED (unknown id), IGNORED (holiday/weekend/leave)
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, biometricId, punchTime])
+  @@index([companyId, status])
+  @@index([userId, punchTime])
+  @@map("biometric_punches")
+}
