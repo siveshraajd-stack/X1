@@ -8,7 +8,7 @@ function currentMonthKey() {
 }
 
 /** Present / Absent / Late / WFH / OD counts per employee for a month. */
-export function AttendanceSummaryTable({ emptyText = 'No employees found' }) {
+export function AttendanceSummaryTable({ emptyText = 'No employees found', showExport = false }) {
     const [month, setMonth] = useState(currentMonthKey());
     const [rows, setRows] = useState([]);
     const [error, setError] = useState('');
@@ -36,6 +36,9 @@ export function AttendanceSummaryTable({ emptyText = 'No employees found' }) {
             <div className="flex items-center gap-3">
                 <label className="text-[10px] font-bold uppercase tracking-wide">Month</label>
                 <input type="month" value={month} max={currentMonthKey()} onChange={(e) => e.target.value && setMonth(e.target.value)} className="px-3 py-2 border border-gray-200 text-xs " />
+                {showExport && (
+                    <a href={`/api/attendance/export?month=${month}`} className="ml-auto px-4 py-2 bg-primary-700 text-white text-[10px] font-bold uppercase tracking-wide hover:bg-primary-800">Export Excel</a>
+                )}
             </div>
             {error && <div className="p-3 bg-red-600 text-white text-xs font-bold border border-gray-200">{error}</div>}
             <div className="border border-gray-200 bg-white shadow-sm overflow-x-auto">

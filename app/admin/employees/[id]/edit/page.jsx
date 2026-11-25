@@ -152,7 +152,7 @@ export default function EditEmployeeProfilePage() {
             const managerResult = await managerResponse.json();
             if (!managerResponse.ok) throw new Error(managerResult.error || 'Failed to update manager');
 
-            router.push(`/admin/employees/${params.id}`);
+            router.push(session?.user?.id === params.id ? '/admin/profile' : `/admin/employees/${params.id}`);
         } catch (err) {
             setError(err.message);
         } finally {

@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { StaffNameSection } from '@/components/profile/staff-name-section';
 import { EmployeeHero } from '@/components/profile/employee-hero';
@@ -47,7 +48,16 @@ export default function AdminProfilePage() {
                     <h1 className="text-4xl font-bold text-gray-900 uppercase tracking-tight ">HR Profile</h1>
                 </div>
 
-                <EmployeeHero employee={employee} />
+                <EmployeeHero
+                    employee={employee}
+                    right={
+                        session?.user?.id ? (
+                            <Link href={`/admin/employees/${session.user.id}/edit`} className="px-6 py-3 bg-primary-700 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-primary-800 shrink-0">
+                                Edit Profile
+                            </Link>
+                        ) : null
+                    }
+                />
 
                 <div className="mt-10">
                     <EmployeeSections employee={employee} />

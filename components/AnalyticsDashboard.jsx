@@ -313,36 +313,6 @@ export default function AnalyticsDashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* Performance Overview */}
-        <div className="border border-gray-200 bg-white shadow-sm p-8">
-          <h3 className="text-[10px] font-bold text-gray-400 mb-6 uppercase tracking-wider ">Performance Overview</h3>
-          {data.performance?.averageRatings && Object.keys(data.performance.averageRatings).length > 0 ? (
-            <div className="space-y-6">
-              {Object.entries(data.performance.averageRatings).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-gray-900 uppercase tracking-wide ">
-                    {key.replace(/([A-Z])/g, ' $1').trim()}_RATING
-                  </span>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 bg-gray-200 border border-gray-200 h-4">
-                      <div
-                        className="bg-primary-600 h-2 mt-0.5"
-                        style={{ width: `${(value / 5) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-[10px] font-bold text-gray-900 uppercase">
-                      {value?.toFixed(1) || '0.0'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 font-bold uppercase tracking-wide mb-4">No Performance Reviews Found</p>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Recent Activity */}
